@@ -152,7 +152,7 @@ public void robotPeriodic() {
                 detectedColor = "White";
             } else if (hue >= 330 || hue < 30) {
                 detectedColor = "Red";
-            } else if (hue >= 30 && hue < 90) {
+            } else if (hue < 90) {
                 detectedColor = "Yellow";
             } else if (hue >= 90 && hue < 150) {
                 detectedColor = "Green";

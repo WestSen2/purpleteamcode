@@ -1,13 +1,14 @@
 package frc.robot;
 
-import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.wpilibj.RobotBase;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.PS4Controller;
-import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.controls.DutyCycleOut;
-import edu.wpi.first.wpilibj.I2C;
+import com.ctre.phoenix6.hardware.TalonFX;
 import com.revrobotics.ColorSensorV3;
+
+import edu.wpi.first.wpilibj.I2C;
+import edu.wpi.first.wpilibj.PS4Controller;
+import edu.wpi.first.wpilibj.RobotBase;
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.Timer;
 
 public class Robot extends TimedRobot {
 
@@ -101,39 +102,75 @@ public class Robot extends TimedRobot {
     }
 
     @Override
-    public void robotPeriodic() {
-        double currentTime = Timer.getFPGATimestamp();
+public void robotPeriodic() {
+    double currentTime = Timer.getFPGATimestamp();
 
-        if (colorSensor == null) {
-            if (currentTime - lastPrintTime >= 2.0) {
-                lastPrintTime = currentTime;
-                System.out.println("⚠ Color sensor is NULL - not initialized properly");
-            }
-            return;
-        }
-
-        if (currentTime - lastPrintTime >= PRINT_INTERVAL) {
+    if (colorSensor == null) {
+        if (currentTime - lastPrintTime >= 2.0) {
             lastPrintTime = currentTime;
+            System.out.println("⚠ Color sensor is NULL - not initialized properly");
+        }
+        return;
+    }
 
-            try {
-                var color = colorSensor.getColor();
-                int proximity = colorSensor.getProximity();
+    if (currentTime - lastPrintTime >= PRINT_INTERVAL) {
+        lastPrintTime = currentTime;
 
-                String detectedColor = "Unknown";
-                double maxValue = Math.max(color.red, Math.max(color.green, color.blue));
+        try {
+            var color = colorSensor.getColor();
+            int proximity = colorSensor.getProximity();
 
-                if (maxValue < 0.2) {
-                    detectedColor = "Black/Dark";
-                } else if (color.red > color.green && color.red > color.blue) {
-                    if (color.green > 0.3 && color.blue < 0.3) detectedColor = "Yellow";
-                    else detectedColor = "Red";
-                } else if (color.green > color.red && color.green > color.blue) detectedColor = "Green";
-                else if (color.blue > color.red && color.blue > color.green) detectedColor = "Blue";
-                else if (color.red > 0.4 && color.green > 0.4 && color.blue > 0.4) detectedColor = "White";
-            } catch (Exception e) {
-                System.out.println("✗ ERROR reading color sensor: " + e.getMessage());
-                e.printStackTrace();
+            String detectedColor = "Unknown";
+            double r = color.red;
+            double g = color.green;
+            double b = color.blue;
+
+            double max = Math.max(r, Math.max(g, b));
+            double min = Math.min(r, Math.min(g, b));
+            double delta = max - min;
+
+            // --- Compute hue in degrees (0–360) ---
+            double hue = 0.0;
+            if (delta == 0) {
+                hue = 0;
+            } else if (max == r) {
+                hue = 60 * (((g - b) / delta) % 6);
+            } else if (max == g) {
+                hue = 60 * (((b - r) / delta) + 2);
+            } else {
+                hue = 60 * (((r - g) / delta) + 4);
             }
+            if (hue < 0) hue += 360;
+
+            // --- Compute brightness and saturation (optional for white detection) ---
+            double saturation = (max == 0) ? 0 : (delta / max);
+
+            // --- Classify color ---
+            if (max < 0.2) {
+                detectedColor = "Black/Dark";
+            } else if (saturation < 0.2 && max > 0.4) {
+                detectedColor = "White";
+            } else if (hue >= 330 || hue < 30) {
+                detectedColor = "Red";
+            } else if (hue >= 30 && hue < 90) {
+                detectedColor = "Yellow";
+            } else if (hue >= 90 && hue < 150) {
+                detectedColor = "Green";
+            } else if (hue >= 150 && hue < 210) {
+                detectedColor = "Cyan";
+            } else if (hue >= 210 && hue < 270) {
+                detectedColor = "Blue";
+            } else if (hue >= 270 && hue < 330) {
+                detectedColor = "Purple";
+            }
+
+            System.out.printf("Detected: %-7s | R: %.2f G: %.2f B: %.2f | Hue: %.1f | Proximity: %d%n",
+                    detectedColor, r, g, b, hue, proximity);
+
+        } catch (Exception e) {
+            System.out.println("✗ ERROR reading color sensor: " + e.getMessage());
+            e.printStackTrace();
         }
     }
+}
 }

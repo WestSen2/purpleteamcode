@@ -1,0 +1,157 @@
+This is just to write notes Rushil.
+
+***********
+TEST CODE WITH THIS WHEN WE HAVE SWERVE, ROBOT.JAVA
+***********
+
+package frc.robot;
+
+import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.I2C;
+import edu.wpi.first.wpilibj.PS4Controller;
+import edu.wpi.first.wpilibj.RobotBase;
+
+import com.revrobotics.ColorSensorV3;
+
+// --- Your swerve imports ---
+import frc.robot.subsystems.SwerveSubsystem;
+
+public class Robot extends TimedRobot {
+
+    // --- Subsystems ---
+    private SwerveSubsystem swerve;
+
+    // --- Controller ---
+    private PS4Controller controller;
+
+    // --- Color Sensor ---
+    private final I2C.Port i2cPort = I2C.Port.kOnboard;
+    private ColorSensorV3 colorSensor;
+    private double lastPrintTime = 0;
+    private static final double PRINT_INTERVAL = 0.5;
+
+    @Override
+    public void robotInit() {
+        System.out.println("\n=== ROBOT INITIALIZATION START ===\n");
+
+        if (RobotBase.isReal()) {
+            System.out.println("✓ Running on REAL ROBOT");
+        } else {
+            System.out.println("⚙ Running in SIMULATION mode");
+        }
+
+        // --- Initialize Swerve Subsystem ---
+        try {
+            swerve = new SwerveSubsystem();
+            System.out.println("✓ Swerve Subsystem initialized");
+        } catch (Exception e) {
+            System.out.println("✗ ERROR initializing Swerve Subsystem!");
+            e.printStackTrace();
+            swerve = null;
+        }
+
+        // --- Initialize PS4 Controller ---
+        try {
+            controller = new PS4Controller(0);
+            System.out.println("✓ PS4 Controller initialized (USB 0)");
+        } catch (Exception e) {
+            System.out.println("✗ WARNING: PS4 controller initialization failed");
+            e.printStackTrace();
+            controller = null;
+        }
+
+        // --- Initialize Color Sensor ---
+        try {
+            colorSensor = new ColorSensorV3(i2cPort);
+            System.out.println("✓ Color sensor object created");
+            if (!colorSensor.isConnected()) {
+                System.out.println("✗ WARNING: Sensor reports NOT CONNECTED!");
+            } else {
+                System.out.println("✓ Sensor reports CONNECTED");
+            }
+        } catch (Exception e) {
+            System.out.println("✗ WARNING: Color sensor initialization failed!");
+            e.printStackTrace();
+            colorSensor = null;
+        }
+
+        System.out.println("\n=== INITIALIZATION COMPLETE ===\n");
+    }
+
+    // ==============================================================
+    // TELEOP CONTROL (called ~50x per second during driver control)
+    // ==============================================================
+    @Override
+    public void teleopPeriodic() {
+        if (swerve == null || controller == null) {
+            System.out.println("✗ Swerve or controller not initialized. Skipping teleop.");
+            return;
+        }
+
+        // Get joystick values from PS4
+        double xSpeed = -controller.getLeftY() * 4.0;  // forward/back
+        double ySpeed = -controller.getLeftX() * 4.0;  // strafe left/right
+        double rot = -controller.getRightX() * 2.0;    // rotation
+
+        // Drive robot (field-relative)
+        swerve.drive(xSpeed, ySpeed, rot, true);
+    }
+
+    // ==============================================================
+    // PERIODIC SENSOR MONITORING
+    // ==============================================================
+    @Override
+    public void robotPeriodic() {
+        double currentTime = Timer.getFPGATimestamp();
+
+        // --- Handle Color Sensor ---
+        if (colorSensor != null && currentTime - lastPrintTime >= PRINT_INTERVAL) {
+            lastPrintTime = currentTime;
+
+            try {
+                var color = colorSensor.getColor();
+                int proximity = colorSensor.getProximity();
+
+                String detectedColor = "Unknown";
+                double r = color.red;
+                double g = color.green;
+                double b = color.blue;
+
+                double max = Math.max(r, Math.max(g, b));
+                double min = Math.min(r, Math.min(g, b));
+                double delta = max - min;
+
+                double hue = 0.0;
+                if (delta == 0) hue = 0;
+                else if (max == r) hue = 60 * (((g - b) / delta) % 6);
+                else if (max == g) hue = 60 * (((b - r) / delta) + 2);
+                else hue = 60 * (((r - g) / delta) + 4);
+                if (hue < 0) hue += 360;
+
+                double saturation = (max == 0) ? 0 : (delta / max);
+
+                if (max < 0.2) detectedColor = "Black/Dark";
+                else if (saturation < 0.2 && max > 0.4) detectedColor = "White";
+                else if (hue >= 330 || hue < 30) detectedColor = "Red";
+                else if (hue >= 30 && hue < 90) detectedColor = "Yellow";
+                else if (hue >= 90 && hue < 150) detectedColor = "Green";
+                else if (hue >= 150 && hue < 210) detectedColor = "Cyan";
+                else if (hue >= 210 && hue < 270) detectedColor = "Blue";
+                else if (hue >= 270 && hue < 330) detectedColor = "Purple";
+
+                System.out.printf(
+                    "Detected: %-7s | R: %.2f G: %.2f B: %.2f | Hue: %.1f | Proximity: %d%n",
+                    detectedColor, r, g, b, hue, proximity
+                );
+            } catch (Exception e) {
+                System.out.println("✗ ERROR reading color sensor: " + e.getMessage());
+            }
+        }
+    }
+}
+
+**************************
+TEST SWERVE CODE ROBOT.JAVA
+**************************
+
